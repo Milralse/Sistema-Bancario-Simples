@@ -1,9 +1,80 @@
+from abc import ABC, abstractmethod
 from datetime import datetime
 
 usuarios = []
 contas = []
 LIMITE_OPERACOES = 10
 LIMITE_VALOR_SAQUE = 500
+
+
+class Historico:
+    def __init__(self):
+        self.transacoes = []
+
+    def adicionar_transacao(self, descricao):
+        data_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        self.transacoes.append(f"{data_hora} - {descricao}")
+
+    def listar(self):
+        if not self.transacoes:
+            print("Nenhuma transação registrada.")
+        else:
+            print("\n===== EXTRATO =====")
+            for transacao in self.transacoes:
+                print(transacao)
+            print("===================\n")
+
+
+class Conta(ABC):
+    def __init__(self, agencia, numero, usuario):
+        self.agencia = agencia
+        self.numero = numero
+        self.usuario = usuario
+        self.saldo = 0
+        self.historico = Historico()
+        self.operacoes = 0
+
+    @abstractmethod
+    def sacar(self, valor):
+        pass
+
+    def depositar(self, valor):
+        if self.operacoes >= LIMITE_OPERACOES:
+            print("❌ Limite de operações atingido.")
+            return
+
+        if valor > 0:
+            self.saldo += valor
+            self.historico.adicionar_transacao(f"Depósito de R$ {valor:.2f}")
+            self.operacoes += 1
+            print("✅ Depósito realizado.")
+        else:
+            print("❌ Valor inválido.")
+
+    def extrato(self):
+        print(f"Conta: {self.numero} | Agência: {self.agencia}")
+        self.historico.listar()
+        print(f"Saldo atual: R$ {self.saldo:.2f}")
+        print(f"Operações realizadas: {self.operacoes}/{LIMITE_OPERACOES}")
+
+
+class ContaCorrente(Conta):
+    def sacar(self, valor):
+        if self.operacoes >= LIMITE_OPERACOES:
+            print("❌ Limite de operações atingido.")
+            return
+
+        if valor <= 0:
+            print("❌ Valor inválido.")
+        elif valor > self.saldo:
+            print("❌ Saldo insuficiente.")
+        elif valor > LIMITE_VALOR_SAQUE:
+            print(f"❌ Limite máximo por saque é R$ {LIMITE_VALOR_SAQUE:.2f}")
+        else:
+            self.saldo -= valor
+            self.historico.adicionar_transacao(f"Saque de R$ {valor:.2f}")
+            self.operacoes += 1
+            print("✅ Saque realizado.")
 
 
 def criar_usuario():
@@ -43,75 +114,22 @@ def criar_conta():
             return
 
     numero_conta = len(contas) + 1
-    contas.append({
-        "agencia": "0001",
-        "numero_conta": numero_conta,
-        "usuario": usuario,
-        "saldo": 0,
-        "extrato": [],
-        "operacoes": 0
-    })
+    conta = ContaCorrente(agencia="0001", numero=numero_conta, usuario=usuario)
+    contas.append(conta)
 
     print(f"✅ Conta criada com sucesso! Agência: 0001 | Conta: {numero_conta}")
 
 
-def depositar(conta):
-    if conta["operacoes"] >= LIMITE_OPERACOES:
-        print("❌ Limite de 10 operações atingido.")
-        return
-
-    valor = float(input("Valor do depósito: "))
-    if valor > 0:
-        conta["saldo"] += valor
-        conta["extrato"].append(f"{datetime.now()} - Depósito: R$ {valor:.2f}")
-        conta["operacoes"] += 1
-        print("✅ Depósito realizado.")
-    else:
-        print("❌ Valor inválido.")
-
-
-def sacar(conta):
-    if conta["operacoes"] >= LIMITE_OPERACOES:
-        print("❌ Limite de 10 operações atingido.")
-        return
-
-    valor = float(input("Valor do saque: "))
-
-    if valor <= 0:
-        print("❌ Valor inválido.")
-    elif valor > conta["saldo"]:
-        print("❌ Saldo insuficiente.")
-    elif valor > LIMITE_VALOR_SAQUE:
-        print(f"❌ Saque máximo por operação é R$ {LIMITE_VALOR_SAQUE:.2f}")
-    else:
-        conta["saldo"] -= valor
-        conta["extrato"].append(f"{datetime.now()} - Saque: R$ {valor:.2f}")
-        conta["operacoes"] += 1
-        print("✅ Saque realizado.")
-
-
-def exibir_extrato(conta):
-    print("\n========== EXTRATO ==========")
-    if not conta["extrato"]:
-        print("Não foram realizadas movimentações.")
-    else:
-        for operacao in conta["extrato"]:
-            print(operacao)
-    print(f"\nSaldo atual: R$ {conta['saldo']:.2f}")
-    print(f"Operações realizadas: {conta['operacoes']}/10")
-    print("=============================\n")
-
-
 def selecionar_conta():
     cpf = input("Informe o CPF do titular: ")
-    contas_usuario = [conta for conta in contas if conta["usuario"]["cpf"] == cpf]
+    contas_usuario = [conta for conta in contas if conta.usuario["cpf"] == cpf]
 
     if not contas_usuario:
         print("❌ Nenhuma conta encontrada para esse CPF.")
         return None
 
     for i, conta in enumerate(contas_usuario, 1):
-        print(f"[{i}] Agência: {conta['agencia']} | Conta: {conta['numero_conta']}")
+        print(f"[{i}] Agência: {conta.agencia} | Conta: {conta.numero}")
 
     opcao = int(input("Selecione o número da conta: ")) - 1
     return contas_usuario[opcao] if 0 <= opcao < len(contas_usuario) else None
@@ -156,11 +174,13 @@ while True:
                 opcao_conta = menu_conta()
 
                 if opcao_conta == "1":
-                    depositar(conta)
+                    valor = float(input("Valor do depósito: "))
+                    conta.depositar(valor)
                 elif opcao_conta == "2":
-                    sacar(conta)
+                    valor = float(input("Valor do saque: "))
+                    conta.sacar(valor)
                 elif opcao_conta == "3":
-                    exibir_extrato(conta)
+                    conta.extrato()
                 elif opcao_conta == "4":
                     break
                 else:
